@@ -18,11 +18,19 @@ categories: Armv8
 
 这样，如果索引域相同、但并不相等的多个地址，其数据则会缓存到同组上的不同路。因此cache在查找时，则会并行地根据索引域对所有路进行cache line的查找，并进行标记域的比对。
 
-高速缓存根据是通过物理地址还是虚拟地址寻址，可以分为物理高速缓存和虚拟高速缓存。但由于寻址是利用了索引域和标记域2个坐标，因此还可以细分为3种高速缓存：
+高速缓存根据是通过物理地址还是虚拟地址寻址，可以分为物理高速缓存和虚拟高速缓存：
+
+<img src="https://mdpics4lgw.oss-cn-beijing.aliyuncs.com/aliyun/202310181027250.png" alt="image-20231018102755984" style="zoom: 67%;" />
+
+<img src="https://mdpics4lgw.oss-cn-beijing.aliyuncs.com/aliyun/202310181028969.png" alt="image-20231018102822751" style="zoom:67%;" />
+
+但由于寻址是利用了索引域和标记域2个坐标，因此还可以细分为3种高速缓存：
 
 1. VIVT(Virtual Index Virtual Tag)：使用虚拟地址的索引域和标记域。
 2. PIPT：使用物理地址的索引域和标记域
 3. VIPT：使用虚拟地址的索引域和标记域。这种做法好处有：修改虚拟地址和物理地址映射关系后，不需要invalidate 对应的cache line；当索引域位于页内偏移区域时，不会产生重名问题。
+
+
 
 使用虚拟高速缓存时，可能会出现2种问题：
 
@@ -56,7 +64,22 @@ categories: Armv8
 
 cache缓存的是内存里的数据，而内存中的数据能被cache缓存的前提是该内存区域是**可缓存的普通内存**。进一步地，我们还可以指定这个内存区域是内部共享的还是外部共享的，如果是内存共享的，则可以缓存在处理器核内部的cache，如L1 cache；如果是外部共享的，则只能缓存在通过系统总线扩展的高速缓存，可能是L3 cache。
 
-- [ ] TODO：指令DC、IC
+对高速缓存的管理分为3种情况：
+
+1. 失效：使cache失效，丢弃其数据
+2. 清理：将某个cache line写回到内存或下一级高速缓存。
+3. 清零
+
+通过指令DC、IC可以分别对数据高速缓存和指令高速缓存进行管理。其格式为：
+
+```
+DC <operation>, <Xt>
+IC <operation>, <Xt>
+```
+
+<img src="https://mdpics4lgw.oss-cn-beijing.aliyuncs.com/aliyun/202310181108211.png" alt="image-20231018110813002" style="zoom:80%;" />
+
+<img src="https://mdpics4lgw.oss-cn-beijing.aliyuncs.com/aliyun/202310181110302.png" alt="微信图片_20231018111009" style="zoom: 50%;" />
 
 ### 查看高速缓存的信息
 
