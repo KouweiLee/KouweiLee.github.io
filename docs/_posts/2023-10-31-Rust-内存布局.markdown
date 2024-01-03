@@ -4,8 +4,6 @@ title:  "Rust-内存布局"
 date:   2023-10-31 
 categories: Rust
 ---
-# Rust内存布局
-
 一个类型的布局layout，包含3个组成部分：
 
 1. alignment：如果一个类型的alignment为n，则该类型实例的起始地址能整除n
