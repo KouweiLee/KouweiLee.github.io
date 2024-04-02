@@ -36,4 +36,16 @@ struct sg_table {
 
 2. 如果scatterlist数组中某个scatterlist的page_link的bit1为1，表示该scatterlist是scatterlist数组中最后一个有效内存块（后面的就忽略不计了）。
 
-参考资料: http://www.wowotech.net/memory_management/scatterlist.html
+## API
+
+### sg_init_table
+
+```c
+static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
+```
+
+初始化一个散列表, nents为有效的内存块个数.
+
+## 参考资料
+
+http://www.wowotech.net/memory_management/scatterlist.html

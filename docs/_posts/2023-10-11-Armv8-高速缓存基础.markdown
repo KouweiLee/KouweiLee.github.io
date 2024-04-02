@@ -79,6 +79,8 @@ IC <operation>, <Xt>
 
 <img src="https://mdpics4lgw.oss-cn-beijing.aliyuncs.com/aliyun/202310181110302.png" alt="微信图片_20231018111009" style="zoom: 50%;" />
 
+这里的PoC和PoU规定了高速缓存维护指令作用的范围。对于PoC，则表示全系统(包括所有处理器、DMA、GPU)都会看到这个指令执行后的效果。而PoU则只限于内部共享域的处理器会看到指令作用的效果。
+
 ### 查看高速缓存的信息
 
 CLIDR_EL1寄存器：通过Ctype<n\>字段标识系统最高支持几级高速缓存，通过ICB字段标识最高级别的内部共享的高速缓存是第几级。

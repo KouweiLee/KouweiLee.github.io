@@ -31,6 +31,8 @@ daemon和FUSE.ko的工作流程介绍: https://zhuanlan.zhihu.com/p/143256077. �
 
 对于virtiofs来说, 其driver类似与fuse中的kernel module fuse.ko, device为fuse daemon守护进程. 通过virtqueue, 根据fuse协议进行通信.
 
+![image-20240124165914067](https://mdpics4lgw.oss-cn-beijing.aliyuncs.com/aliyun/image-20240124165914067.png)
+
 fuse协议: https://man7.org/linux/man-pages/man4/fuse.4.html 
 
 virtqueues包含: 

@@ -4,7 +4,9 @@ title:  "Virtio基础知识"
 date:   2023-12-1 
 categories: Virtio
 ---
-## virtio是什么？
+# virtio基础学习
+
+## virtio基本概念
 
 virtio设备是hypervisor提供的一种设备（虚拟设备），guest如果想使用这种设备，需要实现virtio设备的驱动程序。整个virtio的组织结构为：
 
@@ -12,7 +14,7 @@ virtio设备是hypervisor提供的一种设备（虚拟设备），guest如果�
 
 其中driver和device之间存在一层transport层，该层利用共享内存的方式(virtqueue)进行driver和device之间的数据传输。
 
-## guest如何发现virtio设备？
+### guest如何发现virtio设备？
 
 virtio根据*设备让驱动看到和访问设备的方式*，可以分为2种：
 
@@ -21,7 +23,7 @@ virtio根据*设备让驱动看到和访问设备的方式*，可以分为2种�
 
 对于Arm，virtio设备为MMIO，此时需要在设备树中提供virtio设备所在内存区域的地址、中断号等信息。若hypervisor提供了一种新的virtio设备，则需要将这些信息添加到设备树。guest解析设备树时就会发现该设备。
 
-## virtio-driver和device之间如何交互？
+### virtio-driver和device之间如何交互？
 
 * 读写配置空间发生data abort
 
@@ -42,7 +44,9 @@ device完成IO请求后，有2种方式通知driver：
 
 最初，driver会读写配置空间的寄存器与device进行协商。此时driver会为virtqueue分配内存空间，并将其ipa写入QueueDescLow等多个IO寄存器，使device获知virtqueue的地址，这样便建立了guest和hypervisor之间的共享内存区域。
 
-## 核心数据结构: Virtqueue
+## virtio-blk设备
+
+首先介绍一下核心数据结构: Virtqueue
 
 <img src="https://mdpics4lgw.oss-cn-beijing.aliyuncs.com/aliyun/image-20231227142933852.png" alt="image-20231227142933852" style="zoom:50%;" />
 
@@ -220,6 +224,131 @@ struct virtio_blk_config {
     u8 unused1[3];
 };
 ```
+
+## virtio-net设备
+
+有3种virtqueue, 顺序以此为receiveq, transmitq, controlq. 一个存放空buffer, 用来收报文；一个存放往外发送的buffer, 用来发报文；第三种队列用来控制特征.
+
+### driver初始化
+
+#### 协商features
+
+VIRTIO_NET_F_CSUM (0): Device可以处理带有部分校验和的报文. 这样驱动就可以将一部分工作量卸载到设备, 减轻了主机处理这些数据包时的负担
+
+VIRTIO_NET_F_GUEST_CSUM (1): 驱动进行部分校验数据包
+
+VIRTIO_NET_F_GUEST_UFO (10)
+
+VIRTIO_NET_F_HOST_TSO4 (11): device可以处理IPv4 TCP报文, 意思就是驱动可以使用下放到设备的TCP
+
+VIRTIO_NET_F_HOST_TSO6 (12) : device可以处理IPv6 TCP报文
+
+VIRTIO_NET_F_HOST_UFO (14) : device可以处理UDP fragmentation报文
+
+VIRTIO_NET_F_HOST_USO (56) : device可以处理UDP segmentation
+
+#### 设备的配置空间
+
+```c
+struct virtio_net_config {
+	u8 mac[6]; // 设备的mac地址
+#define VIRTIO_NET_S_LINK_UP 1
+#define VIRTIO_NET_S_ANNOUNCE 2
+	le16 status;
+}
+```
+
+#### 重要的初始化工作
+
+driver初始化时会用空buffer填充receiveq. 一个buffer对应着多个描述符. 
+
+### 传输报文
+
+#### 发送报文
+
+报文头对应的数据结构为:
+
+```c
+struct virtio_net_hdr {
+#define VIRTIO_NET_HDR_F_NEEDS_CSUM 1
+#define VIRTIO_NET_HDR_F_DATA_VALID 2
+#define VIRTIO_NET_HDR_F_RSC_INFO 4
+    u8 flags;
+#define VIRTIO_NET_HDR_GSO_NONE 0
+#define VIRTIO_NET_HDR_GSO_TCPV4 1
+#define VIRTIO_NET_HDR_GSO_UDP 3    // UDP fragmentation
+#define VIRTIO_NET_HDR_GSO_TCPV6 4
+#define VIRTIO_NET_HDR_GSO_UDP_L4 5 // UDP segmentation
+#define VIRTIO_NET_HDR_GSO_ECN 0x80
+    u8 gso_type;
+    le16 hdr_len;
+    le16 gso_size;
+    le16 csum_start;
+    le16 csum_offset;
+    le16 num_buffers;
+};
+```
+
+由于设定了VIRTIO_NET_F_CSUM, 因此flags为VIRTIO_NET_HDR_F_NEEDS_CSUM???
+
+gso_type表明该报文是以哪种协议传送. 
+
+注意, 这和blk设备描述符链的组成并不相同. 报文头之后的数据格式, 是以数据链路层的格式来的:
+
+<img src="https://mdpics4lgw.oss-cn-beijing.aliyuncs.com/aliyun/image-20240109095143830.png" alt="image-20240109095143830" style="zoom:50%;" />
+
+其中ARP报文是网络层数据报, 用于通过IP地址来获取MAC地址. 类型值为0x0806
+
+#### 接收报文
+
+device设置报文头num_buffers为接收这个报文用到的描述符数量, 不过由于feature的设置, num_buffers恒为1 
+
+#### control queue的使用
+
+driver通过control queue可以发送命令给device, 来控制一些复杂feature的使用. 命令的数据格式为:
+
+```c
+struct virtio_net_ctrl {
+    u8 class;
+    u8 command;
+    u8 command-specific-data[];
+    u8 ack;
+};
+/* ack values */
+#define VIRTIO_NET_OK 0
+#define VIRTIO_NET_ERR 1
+```
+
+其中前3个字段是driver发出, ack是device响应的
+
+## virtio-console
+
+linux的命令行参数中, 会指定其启动后终端对应的串口, 例如`console=ttyAMA0`则表示设备树里的第一个串口. 之后计算机会监视该串口, 如果有字符读入, 则交给shell处理解析, 比如执行一个程序. 如果有字符要向串口写, 即transmit, 则写入该串口.
+
+* Features:
+
+VIRTIO_CONSOLE_F_SIZE (0):Configuration cols and rows are valid.
+
+* 设备配置空间
+
+```c
+struct virtio_console_config {
+    le16 cols;
+    le16 rows;
+    le32 max_nr_ports;
+    le32 emerg_wr;
+};
+```
+
+包含4个队列:
+
+0 receiveq(port0) : device传给driver的
+
+1 transmitq(port0): driver发给device的. 
+
+2 control receiveq 
+
+3 control transmitq
 
 ## 参考资料
 
