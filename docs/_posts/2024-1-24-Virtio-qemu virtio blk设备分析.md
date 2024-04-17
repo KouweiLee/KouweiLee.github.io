@@ -1,7 +1,7 @@
 ---
 layout: post
-title:  "virtiofs"
-date:   2024-1-19
+title:  "qemu virtio blk设备分析"
+date:   2024-1-24
 categories: 虚拟化
 ---
 
